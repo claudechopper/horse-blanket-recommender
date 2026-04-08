@@ -21,7 +21,7 @@ Settings (blanket library + temperature bands) are editable on the same page. Mu
 
 ```
 /Users/Claude/ALL CLAUDE STUFF/PROJECTS (ACTIVE)/
-└── SHELAGH/
+└── SHELAGH PROJECTS/
     └── Farm Projects/
         └── horse-blanket-recommender/
             ├── index.html       ← the entire frontend (HTML + CSS + JS in one file)
@@ -32,7 +32,7 @@ Settings (blanket library + temperature bands) are editable on the same page. Mu
             └── CONTEXT.md       ← this file
 ```
 
-`SHELAGH/` is the umbrella folder for all of Shelagh's projects. `Farm Projects/` is the category for horse/farm-related work. New SHELAGH projects of other kinds can be siblings of `Farm Projects/`.
+`SHELAGH PROJECTS/` is the umbrella folder for all of Shelagh's projects. `Farm Projects/` is the category for horse/farm-related work. New SHELAGH projects of other kinds can be siblings of `Farm Projects/`.
 
 ---
 
@@ -89,7 +89,7 @@ Settings (blanket library + temperature bands) are editable on the same page. Mu
 
 **Deploy workflow**:
 ```bash
-cd "/Users/Claude/ALL CLAUDE STUFF/PROJECTS (ACTIVE)/SHELAGH/Farm Projects/horse-blanket-recommender"
+cd "/Users/Claude/ALL CLAUDE STUFF/PROJECTS (ACTIVE)/SHELAGH PROJECTS/Farm Projects/horse-blanket-recommender"
 git add -A
 git commit -m "..."
 git push
@@ -145,7 +145,7 @@ git push
 - Added **Backup** block in Settings: Export (downloads timestamped JSON), Import from file
 - Hardened save flushing: `visibilitychange` / `pagehide` / `beforeunload` listeners + `sendBeacon` / `keepalive` fetch so saves are never lost mid-debounce
 - Renamed app from "Shelagh's Horse Blanket Recommender" → "Horse Blanket Recommender" (title, h1, basic auth realm)
-- Reorganized folders: project moved from `SHELAGH/horse-blanket-recommender/` to `SHELAGH/Farm Projects/horse-blanket-recommender/` (the previous structure had ended up as a single folder literally named `SHELAGH:Farm Projects` due to a slash-vs-colon mishap; that's been fixed into proper nested folders)
+- Reorganized folders: project moved from `SHELAGH/horse-blanket-recommender/` to `SHELAGH PROJECTS/Farm Projects/horse-blanket-recommender/` (the previous structure had ended up as a single folder literally named `SHELAGH:Farm Projects` due to a slash-vs-colon mishap; that's been fixed into proper nested folders)
 - Wrote this CONTEXT.md file
 
 ---
