@@ -372,36 +372,88 @@ function defaultData() {
 
 // ---- state ----
 let state;
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) { state = defaultData(); state.activeGroupId = state.groups[0].id; return; }
-    const parsed = JSON.parse(raw);
-    // Migration: old shape was { blankets: [...], bands: [...] } — wrap it as the first group.
-    if (parsed && Array.isArray(parsed.blankets) && Array.isArray(parsed.bands) && !parsed.groups) {
-      const migrated = {
-        id: uid("g"),
-        name: "My horses",
-        blankets: parsed.blankets,
-        bands: parsed.bands,
-      };
-      state = { activeGroupId: migrated.id, groups: [migrated] };
-    } else if (parsed && Array.isArray(parsed.groups)) {
-      state = parsed;
-      if (!state.groups.length) state.groups = [buildSeedGroup("My horses")];
-      if (!state.activeGroupId || !state.groups.find(g => g.id === state.activeGroupId)) {
-        state.activeGroupId = state.groups[0].id;
-      }
-    } else {
-      state = defaultData();
+
+// Normalize any loaded data into the current state shape (handles v1 migration + empty fallbacks).
+function applyLoadedData(parsed) {
+  if (parsed && Array.isArray(parsed.blankets) && Array.isArray(parsed.bands) && !parsed.groups) {
+    // v1 migration: old shape was { blankets: [...], bands: [...] } — wrap as the first group.
+    const migrated = {
+      id: uid("g"),
+      name: "My horses",
+      blankets: parsed.blankets,
+      bands: parsed.bands,
+    };
+    state = { activeGroupId: migrated.id, groups: [migrated] };
+  } else if (parsed && Array.isArray(parsed.groups) && parsed.groups.length > 0) {
+    state = parsed;
+    if (!state.activeGroupId || !state.groups.find(g => g.id === state.activeGroupId)) {
       state.activeGroupId = state.groups[0].id;
     }
-  } catch {
+  } else {
     state = defaultData();
     state.activeGroupId = state.groups[0].id;
   }
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+// Try server first (cross-device sync), fall back to localStorage (offline), finally seed fresh.
+async function load() {
+  // 1. Try the server
+  try {
+    const res = await fetch("/api/data", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.groups || (data.blankets && data.bands))) {
+        applyLoadedData(data);
+        // Mirror to localStorage as an offline cache.
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        return;
+      }
+      // Server returned {} (empty file) — try localStorage before seeding defaults,
+      // so a user's existing local data isn't wiped on first server hit.
+    }
+  } catch (e) {
+    // Offline or server down — fall through to localStorage.
+    console.warn("Server unreachable, using localStorage", e);
+  }
+
+  // 2. Fall back to localStorage
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      applyLoadedData(JSON.parse(raw));
+      // If the server is reachable but empty, push our local state up so both sides agree.
+      pushToServer();
+      return;
+    }
+  } catch {}
+
+  // 3. Nothing anywhere — fresh seed
+  state = defaultData();
+  state.activeGroupId = state.groups[0].id;
+  pushToServer();
+}
+
+// Debounced server push. localStorage write happens immediately inside save().
+let saveTimer = null;
+function pushToServer() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fetch("/api/data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(state),
+    }).catch(() => {
+      // Offline — localStorage already has it; will sync next time we're online.
+    });
+  }, 600);
+}
+
+function save() {
+  // Immediate offline cache
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Debounced cross-device sync
+  pushToServer();
+}
 
 function activeGroup() {
   return state.groups.find(g => g.id === state.activeGroupId) || state.groups[0];
@@ -736,8 +788,10 @@ document.getElementById("add-band").addEventListener("click", () => {
   renderAll();
 });
 
-load();
-renderAll();
+(async () => {
+  await load();
+  renderAll();
+})();
 </script>
 </body>
 </html>

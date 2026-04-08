@@ -1,0 +1,17 @@
+{
+  "name": "horse-blanket-recommender",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Shelagh's horse blanket recommender — password-protected, cross-device synced",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-basic-auth": "^1.2.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

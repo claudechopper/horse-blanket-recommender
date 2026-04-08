@@ -1,10 +1,14 @@
-# Tiny static site image for Railway.
-# Uses Caddy because it's one binary, ~40MB, and serves static files with zero config.
-FROM caddy:2-alpine
+# Node server (Express) with password protection + cross-device sync
+FROM node:20-alpine
 
-# Railway injects $PORT at runtime; Caddyfile reads it.
-COPY Caddyfile /etc/caddy/Caddyfile
-COPY index.html /srv/index.html
+WORKDIR /app
+
+# Install deps first for better layer caching
+COPY package.json ./
+RUN npm install --omit=dev
+
+# Copy the rest of the app
+COPY server.js index.html ./
 
 EXPOSE 8080
-CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+CMD ["node", "server.js"]
