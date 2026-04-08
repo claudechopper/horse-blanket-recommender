@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Shelagh's Horse Blanket Recommender</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --card: #ffffff;
+    --ink: #2b2a26;
+    --muted: #76736b;
+    --accent: #6b4f2a;
+    --accent-soft: #e8dcc4;
+    --border: #d9d4c5;
+    --warn-bg: #fff3cd;
+    --warn-ink: #7a5b00;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  h2 { font-size: 18px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  select, input[type="text"], input[type="number"] {
+    font: inherit;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--ink);
+    width: 100%;
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: #fff;
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: 10px;
+  }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  button.danger { color: #a33; border-color: #ecc; }
+  button:hover { filter: brightness(.97); }
+
+  /* Section 1: today */
+  #today-card { background: linear-gradient(180deg, #fff 0%, #faf6ec 100%); }
+  #today-select { font-size: 18px; padding: 14px; }
+  #combo {
+    margin-top: 16px;
+    padding: 18px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: #fffdf7;
+    min-height: 80px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  #combo .empty { color: var(--muted); }
+  .chip {
+    display: inline-block;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .chip.muted { background: var(--accent-soft); color: var(--accent); }
+
+  /* Settings */
+  #settings-card {
+    background: var(--accent-soft);
+    border: 2px solid var(--accent);
+  }
+  details > summary {
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 20px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--accent);
+    list-style: none;
+    padding: 6px 0;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before {
+    content: "▸";
+    color: var(--accent);
+    font-size: 32px;
+    line-height: 1;
+    display: inline-block;
+    width: 28px;
+    text-align: center;
+  }
+  details[open] > summary::before { content: "▾"; }
+  .settings-block { margin-top: 16px; }
+  .settings-block h3 { font-size: 15px; margin: 0 0 10px; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+  .row-headers {
+    display: grid;
+    gap: 8px;
+    padding: 0 10px 6px;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 700;
+  }
+  .row-headers.blanket-headers { grid-template-columns: 1.2fr 2fr 80px; }
+  .row-headers.band-headers    { grid-template-columns: 90px 90px 1fr 80px; }
+
+  /* Blanket rows */
+  .blanket-row, .band-row {
+    display: grid;
+    gap: 8px;
+    align-items: start;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: #fff;
+  }
+  .blanket-row { grid-template-columns: 1.2fr 2fr auto; }
+  .band-row    { grid-template-columns: 90px 90px 1fr auto; }
+  .band-row .checks {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fafafa;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  .band-row .checks label {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 8px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--ink);
+    margin: 0;
+    cursor: pointer;
+  }
+  .band-row .checks input { margin: 0; }
+  .band-row .checks label.checked { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .add-btn { margin-top: 6px; }
+
+  .warn {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  /* Visual strip */
+  #strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    background: #fafafa;
+  }
+  #strip .seg {
+    flex: 1 1 110px;
+    min-width: 110px;
+    padding: 10px 8px;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 12px;
+    line-height: 1.3;
+    cursor: pointer;
+    text-align: center;
+    display: flex; flex-direction: column; justify-content: center;
+    min-height: 64px;
+  }
+  #strip .seg b { display: block; font-size: 13px; margin-bottom: 4px; }
+  #strip .seg:hover { transform: scale(1.04); transition: transform .1s; }
+  #strip .empty { padding: 16px; color: var(--muted); }
+
+  @media (max-width: 640px) {
+    body { padding: 16px 10px 64px; font-size: 17px; }
+    h1 { font-size: 24px; }
+    .card { padding: 16px; border-radius: 12px; }
+    #today-select { font-size: 20px; padding: 16px; }
+    select, input[type="text"], input[type="number"] {
+      font-size: 16px; /* prevents iOS zoom on focus */
+      padding: 12px;
+    }
+    button { padding: 12px 16px; font-size: 16px; min-height: 44px; }
+    .blanket-row {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .band-row {
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .band-row .checks { grid-column: 1 / -1; max-height: 160px; }
+    .band-row .delcol { grid-column: 1 / -1; }
+    .band-row .checks label { padding: 8px 12px; font-size: 15px; }
+    .row-headers { display: none; }
+    #strip .seg { flex: 1 1 100%; min-width: 0; padding: 14px; font-size: 15px; }
+    #strip .seg b { font-size: 16px; }
+    details > summary { font-size: 18px; }
+    details > summary::before { font-size: 28px; width: 24px; }
+    .chip { padding: 10px 16px; font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🐴 Shelagh's Horse Blanket Recommender</h1>
+  <p class="sub">Set up your blankets and temperature bands once, then pick today's range to see what to use.</p>
+
+  <!-- SECTION 1: Today -->
+  <div class="card" id="today-card">
+    <h2>What blankets today?</h2>
+    <label for="today-select">Today's temperature range</label>
+    <select id="today-select"></select>
+    <div id="combo"><span class="empty">Pick a range above to see the recommended combination.</span></div>
+  </div>
+
+  <!-- SECTION 3: Visual strip -->
+  <div class="card">
+    <h2>Your blanketing scheme</h2>
+    <div id="strip"><div class="empty">Add some bands below to see your scheme.</div></div>
+  </div>
+
+  <!-- SECTION 2: Settings -->
+  <div class="card" id="settings-card">
+    <details id="settings">
+      <summary>Settings</summary>
+
+      <div class="settings-block">
+        <h3>Blanket Library</h3>
+        <div class="row-headers blanket-headers">
+          <div>Name</div>
+          <div>Notes</div>
+          <div></div>
+        </div>
+        <div id="blankets-list"></div>
+        <button class="add-btn" id="add-blanket">+ Add blanket</button>
+      </div>
+
+      <div class="settings-block">
+        <h3>Temperature Bands (°C)</h3>
+        <div class="row-headers band-headers">
+          <div>Min °C</div>
+          <div>Max °C</div>
+          <div>Blankets</div>
+          <div></div>
+        </div>
+        <div id="bands-list"></div>
+        <button class="add-btn" id="add-band">+ Add band</button>
+        <div id="band-warnings"></div>
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "shelagh.blankets.v1";
+
+const DEFAULT_DATA = (() => {
+  const blankets = [
+    { id: "b1", name: "Sheet",       notes: "no fill" },
+    { id: "b2", name: "100g",        notes: "light fill" },
+    { id: "b3", name: "200g",        notes: "medium fill" },
+    { id: "b4", name: "300g",        notes: "heavy fill" },
+    { id: "b5", name: "Neck cover",  notes: "" },
+    { id: "b6", name: "Hood",        notes: "" },
+    { id: "b7", name: "Rain sheet",  notes: "waterproof, no fill" },
+  ];
+  // Suggest blankets for a temperature range (uses the band's MIN as the conservative pick).
+  const suggest = (min) => {
+    if (min < -20) return ["b4","b5","b6"];     // 300g + Neck + Hood
+    if (min < -10) return ["b4","b5"];           // 300g + Neck
+    if (min <  -5) return ["b4"];                // 300g
+    if (min <   0) return ["b3","b5"];           // 200g + Neck
+    if (min <   5) return ["b3"];                // 200g
+    if (min <  10) return ["b2"];                // 100g
+    if (min <  15) return ["b1"];                // Sheet
+    return [];                                    // 15°C+ — no blanket
+  };
+  const bands = [];
+  let i = 0;
+  for (let t = -30; t < 46; t += 2) {
+    bands.push({ id: "r" + (++i), min: t, max: t + 2, blanketIds: suggest(t) });
+  }
+  return { blankets, bands };
+})();
+
+// ---- state ----
+let state;
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = JSON.parse(raw);
+    else state = structuredClone(DEFAULT_DATA);
+  } catch { state = structuredClone(DEFAULT_DATA); }
+  if (!state.blankets) state.blankets = [];
+  if (!state.bands) state.bands = [];
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 9); }
+
+// ---- helpers ----
+function sortedBands() {
+  return [...state.bands].sort((a,b) => (a.min - b.min));
+}
+function bandLabel(b) {
+  return `${b.min}° to ${b.max}° C`;
+}
+function blanketName(id) {
+  const b = state.blankets.find(x => x.id === id);
+  return b ? b.name : "(deleted)";
+}
+function colorForBand(b, i, total) {
+  // cool blue → warm orange across bands
+  const t = total <= 1 ? 0 : i / (total - 1);
+  const hue = 210 - t * 180; // 210 (blue) → 30 (orange)
+  return `hsl(${hue}, 55%, 45%)`;
+}
+
+// ---- render: Section 1 (today dropdown + combo) ----
+function renderToday(preserveSelection = true) {
+  const sel = document.getElementById("today-select");
+  const prev = preserveSelection ? sel.value : "";
+  const bands = sortedBands();
+  sel.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = bands.length ? "— choose a range —" : "(no bands defined yet)";
+  sel.appendChild(placeholder);
+  for (const b of bands) {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = bandLabel(b);
+    sel.appendChild(opt);
+  }
+  if (prev && bands.find(b => b.id === prev)) sel.value = prev;
+  renderCombo();
+}
+function renderCombo() {
+  const sel = document.getElementById("today-select");
+  const combo = document.getElementById("combo");
+  const band = state.bands.find(b => b.id === sel.value);
+  combo.innerHTML = "";
+  if (!band) {
+    combo.innerHTML = '<span class="empty">Pick a range above to see the recommended combination.</span>';
+    return;
+  }
+  if (!band.blanketIds.length) {
+    combo.innerHTML = '<span class="empty">No blankets assigned to this range yet — add some in settings below.</span>';
+    return;
+  }
+  const title = document.createElement("div");
+  title.style.flexBasis = "100%";
+  title.style.fontWeight = "600";
+  title.style.marginBottom = "4px";
+  title.textContent = `For ${bandLabel(band)} use:`;
+  combo.appendChild(title);
+  for (const id of band.blanketIds) {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = blanketName(id);
+    combo.appendChild(chip);
+  }
+}
+
+// ---- render: Section 2a (blankets) ----
+function renderBlankets() {
+  const list = document.getElementById("blankets-list");
+  list.innerHTML = "";
+  for (const blanket of state.blankets) {
+    const row = document.createElement("div");
+    row.className = "blanket-row";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.placeholder = "Name (e.g. 300g)";
+    nameInput.value = blanket.name;
+    nameInput.addEventListener("input", () => {
+      blanket.name = nameInput.value;
+      save();
+      renderBands(); // update labels in checkboxes
+      renderCombo();
+      renderStrip();
+    });
+
+    const notesInput = document.createElement("input");
+    notesInput.type = "text";
+    notesInput.placeholder = "Notes (optional)";
+    notesInput.value = blanket.notes || "";
+    notesInput.addEventListener("input", () => {
+      blanket.notes = notesInput.value;
+      save();
+    });
+
+    const del = document.createElement("button");
+    del.className = "danger";
+    del.textContent = "Delete";
+    del.addEventListener("click", () => {
+      if (!confirm(`Delete blanket "${blanket.name}"?`)) return;
+      state.blankets = state.blankets.filter(b => b.id !== blanket.id);
+      // remove from any bands
+      for (const band of state.bands) {
+        band.blanketIds = band.blanketIds.filter(id => id !== blanket.id);
+      }
+      save();
+      renderAll();
+    });
+
+    row.append(nameInput, notesInput, del);
+    list.appendChild(row);
+  }
+}
+
+// ---- render: Section 2b (bands) ----
+function renderBands() {
+  const list = document.getElementById("bands-list");
+  list.innerHTML = "";
+  const bands = sortedBands();
+  for (const band of bands) {
+    const row = document.createElement("div");
+    row.className = "band-row";
+
+    const minInput = document.createElement("input");
+    minInput.type = "number";
+    minInput.step = "1";
+    minInput.value = band.min;
+    minInput.addEventListener("input", () => {
+      band.min = Number(minInput.value);
+      save();
+      renderToday();
+      renderStrip();
+      renderBandWarnings();
+    });
+
+    const maxInput = document.createElement("input");
+    maxInput.type = "number";
+    maxInput.step = "1";
+    maxInput.value = band.max;
+    maxInput.addEventListener("input", () => {
+      band.max = Number(maxInput.value);
+      save();
+      renderToday();
+      renderStrip();
+      renderBandWarnings();
+    });
+
+    const checks = document.createElement("div");
+    checks.className = "checks";
+    if (!state.blankets.length) {
+      checks.innerHTML = '<span style="color:var(--muted);font-size:13px;padding:4px 8px;">Add blankets above first</span>';
+    }
+    for (const blanket of state.blankets) {
+      const lbl = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = band.blanketIds.includes(blanket.id);
+      if (cb.checked) lbl.classList.add("checked");
+      cb.addEventListener("change", () => {
+        if (cb.checked) {
+          if (!band.blanketIds.includes(blanket.id)) band.blanketIds.push(blanket.id);
+          lbl.classList.add("checked");
+        } else {
+          band.blanketIds = band.blanketIds.filter(id => id !== blanket.id);
+          lbl.classList.remove("checked");
+        }
+        save();
+        renderCombo();
+        renderStrip();
+      });
+      const span = document.createElement("span");
+      span.textContent = blanket.name;
+      lbl.append(cb, span);
+      checks.appendChild(lbl);
+    }
+
+    const delWrap = document.createElement("div");
+    delWrap.className = "delcol";
+    const del = document.createElement("button");
+    del.className = "danger";
+    del.textContent = "Delete";
+    del.addEventListener("click", () => {
+      if (!confirm(`Delete the ${bandLabel(band)} range?`)) return;
+      state.bands = state.bands.filter(b => b.id !== band.id);
+      save();
+      renderAll();
+    });
+    delWrap.appendChild(del);
+
+    row.append(minInput, maxInput, checks, delWrap);
+    list.appendChild(row);
+  }
+}
+
+function renderBandWarnings() {
+  const box = document.getElementById("band-warnings");
+  box.innerHTML = "";
+  const bands = sortedBands();
+  const issues = [];
+  for (const b of bands) {
+    if (b.max <= b.min) issues.push(`Range "${b.min}° to ${b.max}°": max must be greater than min.`);
+  }
+  for (let i = 0; i < bands.length - 1; i++) {
+    const a = bands[i], c = bands[i+1];
+    if (a.max > c.min) issues.push(`Overlap: "${a.min}° to ${a.max}°" overlaps "${c.min}° to ${c.max}°".`);
+    else if (a.max < c.min) issues.push(`Gap: nothing defined between ${a.max}° and ${c.min}°.`);
+  }
+  for (const msg of issues) {
+    const div = document.createElement("div");
+    div.className = "warn";
+    div.textContent = "⚠ " + msg;
+    box.appendChild(div);
+  }
+}
+
+// ---- render: Section 3 (visual strip) ----
+function renderStrip() {
+  const strip = document.getElementById("strip");
+  strip.innerHTML = "";
+  const bands = sortedBands();
+  if (!bands.length) {
+    strip.innerHTML = '<div class="empty">Add some bands below to see your scheme.</div>';
+    return;
+  }
+  bands.forEach((b, i) => {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.style.background = colorForBand(b, i, bands.length);
+    const range = document.createElement("b");
+    range.textContent = `${b.min}° to ${b.max}°`;
+    seg.appendChild(range);
+    const items = document.createElement("span");
+    items.textContent = b.blanketIds.length
+      ? b.blanketIds.map(id => blanketName(id)).join(" + ")
+      : "(none)";
+    seg.appendChild(items);
+    seg.addEventListener("click", () => {
+      document.getElementById("today-select").value = b.id;
+      renderCombo();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    strip.appendChild(seg);
+  });
+}
+
+// ---- render all ----
+function renderAll() {
+  renderBlankets();
+  renderBands();
+  renderToday();
+  renderStrip();
+  renderBandWarnings();
+}
+
+// ---- wire up ----
+document.getElementById("today-select").addEventListener("change", renderCombo);
+
+document.getElementById("add-blanket").addEventListener("click", () => {
+  state.blankets.push({ id: uid("b"), name: "New blanket", notes: "" });
+  save();
+  renderBlankets();
+  renderBands();
+});
+
+document.getElementById("add-band").addEventListener("click", () => {
+  // suggest a sensible new range based on existing bands
+  const bands = sortedBands();
+  let min = 0, max = 2;
+  if (bands.length) {
+    const last = bands[bands.length - 1];
+    min = last.max;
+    max = last.max + 2;
+  }
+  state.bands.push({ id: uid("r"), min, max, blanketIds: [] });
+  save();
+  renderAll();
+});
+
+load();
+renderAll();
+</script>
+</body>
+</html>

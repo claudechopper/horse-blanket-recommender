@@ -1,0 +1,12 @@
+{
+	# Railway provides $PORT; Caddy will listen on it.
+	auto_https off
+	admin off
+}
+
+:{$PORT:8080} {
+	root * /srv
+	file_server
+	try_files {path} /index.html
+	encode gzip
+}
