@@ -26,8 +26,35 @@
     padding: 24px 16px 64px;
   }
   .wrap { max-width: 880px; margin: 0 auto; }
-  h1 { font-size: 28px; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 24px; }
+  h1 { font-size: 28px; margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 10px 0 24px; font-size: 14px; }
+
+  /* Group switcher */
+  .group-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  .group-bar label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 700;
+    margin: 0;
+  }
+  .group-bar select {
+    flex: 1;
+    min-width: 140px;
+    font-weight: 700;
+    color: var(--accent);
+  }
   .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -240,7 +267,17 @@
 <body>
 <div class="wrap">
   <h1>🐴 Shelagh's Horse Blanket Recommender</h1>
-  <p class="sub">Set up your blankets and temperature bands once, then pick today's range to see what to use.</p>
+
+  <!-- GROUP SWITCHER -->
+  <div class="group-bar">
+    <label for="group-select">Group</label>
+    <select id="group-select"></select>
+    <button id="new-group">+ New group</button>
+    <button id="rename-group">Rename</button>
+    <button id="delete-group" class="danger">Delete</button>
+  </div>
+
+  <p class="sub">Each group is its own independent setup — different blankets, different temperature bands. Pick a group above or create a new one.</p>
 
   <!-- SECTION 1: Today -->
   <div class="card" id="today-card">
@@ -291,58 +328,94 @@
 <script>
 const STORAGE_KEY = "shelagh.blankets.v1";
 
-const DEFAULT_DATA = (() => {
+function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 9); }
+
+// Build a seed group (blanket library + 2°C bands spanning -30°C → +46°C).
+function buildSeedGroup(name) {
   const blankets = [
-    { id: "b1", name: "Sheet",       notes: "no fill" },
-    { id: "b2", name: "100g",        notes: "light fill" },
-    { id: "b3", name: "200g",        notes: "medium fill" },
-    { id: "b4", name: "300g",        notes: "heavy fill" },
-    { id: "b5", name: "Neck cover",  notes: "" },
-    { id: "b6", name: "Hood",        notes: "" },
-    { id: "b7", name: "Rain sheet",  notes: "waterproof, no fill" },
+    { id: uid("b"), name: "Sheet",       notes: "no fill" },
+    { id: uid("b"), name: "100g",        notes: "light fill" },
+    { id: uid("b"), name: "200g",        notes: "medium fill" },
+    { id: uid("b"), name: "300g",        notes: "heavy fill" },
+    { id: uid("b"), name: "Neck cover",  notes: "" },
+    { id: uid("b"), name: "Hood",        notes: "" },
+    { id: uid("b"), name: "Rain sheet",  notes: "waterproof, no fill" },
   ];
-  // Suggest blankets for a temperature range (uses the band's MIN as the conservative pick).
+  const [sheet, g100, g200, g300, neck, hood] = blankets.map(b => b.id);
   const suggest = (min) => {
-    if (min < -20) return ["b4","b5","b6"];     // 300g + Neck + Hood
-    if (min < -10) return ["b4","b5"];           // 300g + Neck
-    if (min <  -5) return ["b4"];                // 300g
-    if (min <   0) return ["b3","b5"];           // 200g + Neck
-    if (min <   5) return ["b3"];                // 200g
-    if (min <  10) return ["b2"];                // 100g
-    if (min <  15) return ["b1"];                // Sheet
-    return [];                                    // 15°C+ — no blanket
+    if (min < -20) return [g300, neck, hood];
+    if (min < -10) return [g300, neck];
+    if (min <  -5) return [g300];
+    if (min <   0) return [g200, neck];
+    if (min <   5) return [g200];
+    if (min <  10) return [g100];
+    if (min <  15) return [sheet];
+    return [];
   };
   const bands = [];
-  let i = 0;
   for (let t = -30; t < 46; t += 2) {
-    bands.push({ id: "r" + (++i), min: t, max: t + 2, blanketIds: suggest(t) });
+    bands.push({ id: uid("r"), min: t, max: t + 2, blanketIds: suggest(t) });
   }
-  return { blankets, bands };
-})();
+  return { id: uid("g"), name, blankets, bands };
+}
+
+function buildEmptyGroup(name) {
+  return { id: uid("g"), name, blankets: [], bands: [] };
+}
+
+function defaultData() {
+  return {
+    activeGroupId: null,
+    groups: [buildSeedGroup("My horses")],
+  };
+}
 
 // ---- state ----
 let state;
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) state = JSON.parse(raw);
-    else state = structuredClone(DEFAULT_DATA);
-  } catch { state = structuredClone(DEFAULT_DATA); }
-  if (!state.blankets) state.blankets = [];
-  if (!state.bands) state.bands = [];
+    if (!raw) { state = defaultData(); state.activeGroupId = state.groups[0].id; return; }
+    const parsed = JSON.parse(raw);
+    // Migration: old shape was { blankets: [...], bands: [...] } — wrap it as the first group.
+    if (parsed && Array.isArray(parsed.blankets) && Array.isArray(parsed.bands) && !parsed.groups) {
+      const migrated = {
+        id: uid("g"),
+        name: "My horses",
+        blankets: parsed.blankets,
+        bands: parsed.bands,
+      };
+      state = { activeGroupId: migrated.id, groups: [migrated] };
+    } else if (parsed && Array.isArray(parsed.groups)) {
+      state = parsed;
+      if (!state.groups.length) state.groups = [buildSeedGroup("My horses")];
+      if (!state.activeGroupId || !state.groups.find(g => g.id === state.activeGroupId)) {
+        state.activeGroupId = state.groups[0].id;
+      }
+    } else {
+      state = defaultData();
+      state.activeGroupId = state.groups[0].id;
+    }
+  } catch {
+    state = defaultData();
+    state.activeGroupId = state.groups[0].id;
+  }
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-function uid(prefix) { return prefix + Math.random().toString(36).slice(2, 9); }
+
+function activeGroup() {
+  return state.groups.find(g => g.id === state.activeGroupId) || state.groups[0];
+}
 
 // ---- helpers ----
 function sortedBands() {
-  return [...state.bands].sort((a,b) => (a.min - b.min));
+  return [...activeGroup().bands].sort((a,b) => (a.min - b.min));
 }
 function bandLabel(b) {
   return `${b.min}° to ${b.max}° C`;
 }
 function blanketName(id) {
-  const b = state.blankets.find(x => x.id === id);
+  const b = activeGroup().blankets.find(x => x.id === id);
   return b ? b.name : "(deleted)";
 }
 function colorForBand(b, i, total) {
@@ -374,7 +447,7 @@ function renderToday(preserveSelection = true) {
 function renderCombo() {
   const sel = document.getElementById("today-select");
   const combo = document.getElementById("combo");
-  const band = state.bands.find(b => b.id === sel.value);
+  const band = activeGroup().bands.find(b => b.id === sel.value);
   combo.innerHTML = "";
   if (!band) {
     combo.innerHTML = '<span class="empty">Pick a range above to see the recommended combination.</span>';
@@ -402,7 +475,8 @@ function renderCombo() {
 function renderBlankets() {
   const list = document.getElementById("blankets-list");
   list.innerHTML = "";
-  for (const blanket of state.blankets) {
+  const g = activeGroup();
+  for (const blanket of g.blankets) {
     const row = document.createElement("div");
     row.className = "blanket-row";
 
@@ -432,9 +506,9 @@ function renderBlankets() {
     del.textContent = "Delete";
     del.addEventListener("click", () => {
       if (!confirm(`Delete blanket "${blanket.name}"?`)) return;
-      state.blankets = state.blankets.filter(b => b.id !== blanket.id);
-      // remove from any bands
-      for (const band of state.bands) {
+      g.blankets = g.blankets.filter(b => b.id !== blanket.id);
+      // remove from any bands in this group
+      for (const band of g.bands) {
         band.blanketIds = band.blanketIds.filter(id => id !== blanket.id);
       }
       save();
@@ -450,6 +524,7 @@ function renderBlankets() {
 function renderBands() {
   const list = document.getElementById("bands-list");
   list.innerHTML = "";
+  const g = activeGroup();
   const bands = sortedBands();
   for (const band of bands) {
     const row = document.createElement("div");
@@ -481,10 +556,10 @@ function renderBands() {
 
     const checks = document.createElement("div");
     checks.className = "checks";
-    if (!state.blankets.length) {
+    if (!g.blankets.length) {
       checks.innerHTML = '<span style="color:var(--muted);font-size:13px;padding:4px 8px;">Add blankets above first</span>';
     }
-    for (const blanket of state.blankets) {
+    for (const blanket of g.blankets) {
       const lbl = document.createElement("label");
       const cb = document.createElement("input");
       cb.type = "checkbox";
@@ -515,7 +590,7 @@ function renderBands() {
     del.textContent = "Delete";
     del.addEventListener("click", () => {
       if (!confirm(`Delete the ${bandLabel(band)} range?`)) return;
-      state.bands = state.bands.filter(b => b.id !== band.id);
+      g.bands = g.bands.filter(b => b.id !== band.id);
       save();
       renderAll();
     });
@@ -577,11 +652,27 @@ function renderStrip() {
   });
 }
 
+// ---- render: group switcher ----
+function renderGroupSwitcher() {
+  const sel = document.getElementById("group-select");
+  sel.innerHTML = "";
+  for (const g of state.groups) {
+    const opt = document.createElement("option");
+    opt.value = g.id;
+    opt.textContent = g.name;
+    if (g.id === state.activeGroupId) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  // Disable delete if only one group
+  document.getElementById("delete-group").disabled = state.groups.length <= 1;
+}
+
 // ---- render all ----
 function renderAll() {
+  renderGroupSwitcher();
   renderBlankets();
   renderBands();
-  renderToday();
+  renderToday(false);
   renderStrip();
   renderBandWarnings();
 }
@@ -589,15 +680,51 @@ function renderAll() {
 // ---- wire up ----
 document.getElementById("today-select").addEventListener("change", renderCombo);
 
+document.getElementById("group-select").addEventListener("change", (e) => {
+  state.activeGroupId = e.target.value;
+  save();
+  renderAll();
+});
+
+document.getElementById("new-group").addEventListener("click", () => {
+  const name = prompt("Name this new group (e.g. 'Neighbor's horses', 'Winter barn'):", "");
+  if (!name || !name.trim()) return;
+  const seedIt = confirm("Start this new group with the default blanket library and temperature bands?\n\nOK = start with defaults\nCancel = start completely empty");
+  const group = seedIt ? buildSeedGroup(name.trim()) : buildEmptyGroup(name.trim());
+  state.groups.push(group);
+  state.activeGroupId = group.id;
+  save();
+  renderAll();
+});
+
+document.getElementById("rename-group").addEventListener("click", () => {
+  const g = activeGroup();
+  const name = prompt("Rename this group:", g.name);
+  if (!name || !name.trim()) return;
+  g.name = name.trim();
+  save();
+  renderAll();
+});
+
+document.getElementById("delete-group").addEventListener("click", () => {
+  if (state.groups.length <= 1) return;
+  const g = activeGroup();
+  if (!confirm(`Delete the group "${g.name}"? This removes all its blankets and temperature bands. This cannot be undone.`)) return;
+  state.groups = state.groups.filter(x => x.id !== g.id);
+  state.activeGroupId = state.groups[0].id;
+  save();
+  renderAll();
+});
+
 document.getElementById("add-blanket").addEventListener("click", () => {
-  state.blankets.push({ id: uid("b"), name: "New blanket", notes: "" });
+  activeGroup().blankets.push({ id: uid("b"), name: "New blanket", notes: "" });
   save();
   renderBlankets();
   renderBands();
 });
 
 document.getElementById("add-band").addEventListener("click", () => {
-  // suggest a sensible new range based on existing bands
+  // suggest a sensible new range based on existing bands in this group
   const bands = sortedBands();
   let min = 0, max = 2;
   if (bands.length) {
@@ -605,7 +732,7 @@ document.getElementById("add-band").addEventListener("click", () => {
     min = last.max;
     max = last.max + 2;
   }
-  state.bands.push({ id: uid("r"), min, max, blanketIds: [] });
+  activeGroup().bands.push({ id: uid("r"), min, max, blanketIds: [] });
   save();
   renderAll();
 });
