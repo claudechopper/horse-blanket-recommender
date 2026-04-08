@@ -689,8 +689,7 @@ document.getElementById("group-select").addEventListener("change", (e) => {
 document.getElementById("new-group").addEventListener("click", () => {
   const name = prompt("Name this new group (e.g. 'Neighbor's horses', 'Winter barn'):", "");
   if (!name || !name.trim()) return;
-  const seedIt = confirm("Start this new group with the default blanket library and temperature bands?\n\nOK = start with defaults\nCancel = start completely empty");
-  const group = seedIt ? buildSeedGroup(name.trim()) : buildEmptyGroup(name.trim());
+  const group = buildSeedGroup(name.trim());
   state.groups.push(group);
   state.activeGroupId = group.id;
   save();
