@@ -36,7 +36,7 @@ if (AUTH_USER && AUTH_PASSWORD) {
     basicAuth({
       users: { [AUTH_USER]: AUTH_PASSWORD },
       challenge: true,
-      realm: "Shelagh's Horse Blanket Recommender",
+      realm: "Horse Blanket Recommender",
     })
   );
 }
