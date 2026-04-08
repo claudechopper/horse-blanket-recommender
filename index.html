@@ -353,6 +353,18 @@
         <button class="add-btn" id="add-band">+ Add band</button>
         <div id="band-warnings"></div>
       </div>
+
+      <div class="settings-block">
+        <h3>Backup</h3>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="export-btn">⬇ Export all data (.json)</button>
+          <button id="import-btn">⬆ Import from file…</button>
+          <input type="file" id="import-file" accept="application/json,.json" style="display:none;" />
+        </div>
+        <div style="font-size:13px; color:var(--muted); margin-top:8px;">
+          Export saves every group, blanket, and band as a JSON file. Keep it somewhere safe — you can re-import it later if anything ever gets lost.
+        </div>
+      </div>
     </details>
   </div>
 </div>
@@ -467,9 +479,12 @@ async function load() {
 
 // Debounced server push. localStorage write happens immediately inside save().
 let saveTimer = null;
+let savePending = false;
 function pushToServer() {
   clearTimeout(saveTimer);
+  savePending = true;
   saveTimer = setTimeout(() => {
+    savePending = false;
     fetch("/api/data", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -480,12 +495,41 @@ function pushToServer() {
   }, 600);
 }
 
+// Force-flush any pending debounced save immediately. Called on tab hide / unload
+// so nothing is ever lost if the user closes the page mid-debounce.
+function flushSave() {
+  if (!savePending) return;
+  clearTimeout(saveTimer);
+  savePending = false;
+  const body = JSON.stringify(state);
+  // sendBeacon survives unload; regular fetch might not. Fall back to keepalive fetch.
+  try {
+    const blob = new Blob([body], { type: "application/json" });
+    if (navigator.sendBeacon && navigator.sendBeacon("/api/data", blob)) return;
+  } catch {}
+  try {
+    fetch("/api/data", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+
 function save() {
-  // Immediate offline cache
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Immediate offline cache — localStorage is synchronous so this cannot be lost.
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
   // Debounced cross-device sync
   pushToServer();
 }
+
+// Safety nets: flush on tab hide, page unload, and back/forward cache eviction.
+window.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushSave();
+});
+window.addEventListener("pagehide", flushSave);
+window.addEventListener("beforeunload", flushSave);
 
 function activeGroup() {
   return state.groups.find(g => g.id === state.activeGroupId) || state.groups[0];
@@ -818,6 +862,51 @@ document.getElementById("add-band").addEventListener("click", () => {
   activeGroup().bands.push({ id: uid("r"), min, max, blanketIds: [] });
   save();
   renderAll();
+});
+
+// ---- Export / Import ----
+document.getElementById("export-btn").addEventListener("click", () => {
+  flushSave(); // make sure any in-flight debounced save has landed on the server first
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const filename = `shelagh-blankets-${stamp}.json`;
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+document.getElementById("import-btn").addEventListener("click", () => {
+  document.getElementById("import-file").click();
+});
+
+document.getElementById("import-file").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data || !(data.groups || (data.blankets && data.bands))) {
+      alert("That doesn't look like a valid blanket-recommender export.");
+      return;
+    }
+    if (!confirm("Replace ALL current data with the contents of this file? This can't be undone (but you can re-export first).")) {
+      e.target.value = "";
+      return;
+    }
+    applyLoadedData(data);
+    save();
+    renderAll();
+    alert("Import complete.");
+  } catch (err) {
+    alert("Could not read that file: " + err.message);
+  } finally {
+    e.target.value = "";
+  }
 });
 
 (async () => {
