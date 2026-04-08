@@ -2,8 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Shelagh's Horse Blanket Recommender</title>
+
+<!-- PWA: when added to iOS home screen, open fullscreen with no Safari chrome -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Blankets" />
+<meta name="theme-color" content="#6b4f2a" />
+
+<!-- Home screen icon: an inline SVG horse on a tan background. No external file needed. -->
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%23e8dcc4'/%3E%3Ctext x='50%25' y='50%25' font-size='130' text-anchor='middle' dominant-baseline='central'%3E%F0%9F%90%B4%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='56' font-size='56'%3E%F0%9F%90%B4%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
     --bg: #f7f5f0;
@@ -23,8 +34,17 @@
     font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     background: var(--bg);
     color: var(--ink);
-    padding: 24px 16px 64px;
+    /* Safe-area padding so content clears the iPhone notch and home indicator */
+    padding:
+      calc(24px + env(safe-area-inset-top))
+      calc(16px + env(safe-area-inset-right))
+      calc(64px + env(safe-area-inset-bottom))
+      calc(16px + env(safe-area-inset-left));
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
   }
+  /* Prevent iOS bounce from exposing background behind the app */
+  html { background: var(--bg); }
   .wrap { max-width: 880px; margin: 0 auto; }
   h1 { font-size: 28px; margin: 0 0 10px; }
   .sub { color: var(--muted); margin: 10px 0 24px; font-size: 14px; }
@@ -233,6 +253,18 @@
   #strip .seg b { display: block; font-size: 13px; margin-bottom: 4px; }
   #strip .seg:hover { transform: scale(1.04); transition: transform .1s; }
   #strip .empty { padding: 16px; color: var(--muted); }
+
+  /* Tablet / iPad: bigger touch targets but keep the wider layout */
+  @media (min-width: 641px) and (max-width: 1024px) {
+    body { font-size: 17px; }
+    button { padding: 12px 18px; min-height: 44px; font-size: 16px; }
+    select, input[type="text"], input[type="number"] { padding: 12px 14px; font-size: 16px; }
+    #today-select { font-size: 20px; padding: 16px; }
+    .band-row .checks label { padding: 8px 14px; font-size: 15px; }
+    .chip { padding: 10px 16px; font-size: 15px; }
+    #strip .seg { padding: 14px 8px; font-size: 13px; min-height: 80px; }
+    #strip .seg b { font-size: 14px; }
+  }
 
   @media (max-width: 640px) {
     body { padding: 16px 10px 64px; font-size: 17px; }
